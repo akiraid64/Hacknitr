@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+artifacts/
+cache/
+typechain-types/
+
+# Environment files (NEVER commit!)
+.env
+.env.local
+.env.*.local
+
+# Deployment info
+deployments/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testing
+coverage/
+
+# Misc
+*.pem
+.vercel
