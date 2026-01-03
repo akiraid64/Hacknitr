@@ -1,39 +1,54 @@
 # Dependencies
 node_modules/
-.pnp/
+.pnp
 .pnp.js
 
-# Build outputs
+# Testing
+coverage/
+
+# Next.js
 .next/
 out/
 build/
 dist/
-artifacts/
-cache/
-typechain-types/
 
-# Environment files (NEVER commit!)
+# Production
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
 .env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Deployment info
-deployments/
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
-# Testing
-coverage/
-
 # Misc
-*.pem
+*.tsbuildinfo
+next-env.d.ts
 .vercel
+
+# Local deployment artifacts (keep sepolia.json for reference)
+deployments/localhost-*.json
+
+# Temporary files
+temp_hacknitr/
