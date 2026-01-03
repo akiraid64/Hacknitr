@@ -8,15 +8,6 @@ import { ethers, BrowserProvider, Contract, JsonRpcProvider } from 'ethers';
 
 // Network configurations
 export const NETWORKS = {
-  // ============ PRIMARY: SEPOLIA (Ethereum Testnet) ============
-  sepolia: {
-    chainId: 11155111,
-    name: 'Sepolia',
-    rpcUrl: 'https://rpc.sepolia.org',
-    explorer: 'https://sepolia.etherscan.io',
-    currency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
-  },
-  
   // ============ TESTNETS ============
   polygon_amoy: {
     chainId: 80002,
@@ -24,6 +15,22 @@ export const NETWORKS = {
     rpcUrl: 'https://rpc-amoy.polygon.technology',
     explorer: 'https://amoy.polygonscan.com',
     currency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+  },
+  
+  sepolia: {
+    chainId: 11155111,
+    name: 'Sepolia Testnet',
+    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
+    currency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+    explorer: 'https://sepolia.etherscan.io',
+  },
+  
+  shardeum: {
+    chainId: 8119,
+    name: 'Shardeum EVM Mezame',
+    rpcUrl: 'https://api-mezame.shardeum.org',
+    currency: { name: 'Shardeum', symbol: 'SHM', decimals: 18 },
+    explorer: 'https://explorer-mezame.shardeum.org',
   },
   localhost: {
     chainId: 31337,
@@ -34,8 +41,8 @@ export const NETWORKS = {
   },
 };
 
-// Default network - SEPOLIA (Free testnet with easy faucets)
-export const DEFAULT_NETWORK = NETWORKS.sepolia;
+// Default network - SHARDEUM (99% cheaper gas!)
+export const DEFAULT_NETWORK = NETWORKS.shardeum;
 
 // Contract addresses (update after deployment)
 export const CONTRACTS = {

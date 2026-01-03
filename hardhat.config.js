@@ -19,12 +19,23 @@ module.exports = {
     
     // PRIMARY: Sepolia Testnet (Ethereum)
     sepolia: {
-      url: "https://sepolia.drpc.org",
+      url: process.env.SEPOLIA_RPC || "https://sepolia.drpc.org",
       accounts: [PRIVATE_KEY],
       chainId: 11155111,
       timeout: 300000,
+      httpHeaders: {
+        "Content-Type": "application/json"
+      }
     },
     
+    // Shardeum EVM Testnet - 99% cheaper gas!
+    shardeum: {
+      url: process.env.SHARDEUM_RPC || "https://api-mezame.shardeum.org",
+      accounts: [PRIVATE_KEY],
+      chainId: 8119,
+      timeout: 60000,
+      gasPrice: 1000000000, // 1 gwei (extremely cheap!)
+    },
     // Alternative: Polygon Amoy
     polygon_amoy: {
       url: process.env.POLYGON_AMOY_RPC || "https://rpc-amoy.polygon.technology",
