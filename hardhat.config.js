@@ -19,9 +19,10 @@ module.exports = {
     
     // PRIMARY: Sepolia Testnet (Ethereum)
     sepolia: {
-      url: process.env.SEPOLIA_RPC || "https://rpc.sepolia.org",
+      url: "https://sepolia.drpc.org",
       accounts: [PRIVATE_KEY],
       chainId: 11155111,
+      timeout: 300000,
     },
     
     // Alternative: Polygon Amoy

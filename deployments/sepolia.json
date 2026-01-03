@@ -1,0 +1,11 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contracts": {
+    "SupplyChainBatch": "0x197EeC89D412618cE24f1b802abf0273fCA8c3de",
+    "GoodwillToken": "0x7b2563838420A1B52419c28EA1E73685eaB3aC65",
+    "ESGSoulbound": "0xE3cd486e00D7B278f68ABDBCe5461E06e17bb378",
+    "DonationVerifier": "0x072Eb1c96C0f41095f5445370d5F84E3308a9498",
+    "ExpiryKeeper": "0xA1d1ecf5b2B9d1e3a584171CbdaC28fDAb442a4E"
+  }
+}
