@@ -16,13 +16,13 @@ interface NGO {
 }
 
 interface InventoryItem {
-    id: number;
     product_id: number;
-    batch_id: string;
     product_name: string;
-    quantity_in_stock: number;
-    days_to_expiry: number;
+    gtin: string;
+    batch_id: string;
     expiry_date: string;
+    days_remaining: number;
+    quantity: number;
 }
 
 interface DonationResult {
@@ -84,8 +84,8 @@ export default function DonateToNGOModal({ isOpen, onClose, inventory }: {
         if (!product) return;
 
         const qty = parseInt(quantity);
-        if (qty <= 0 || qty > product.quantity_in_stock) {
-            alert(`Invalid quantity. Max: ${product.quantity_in_stock}`);
+        if (qty <= 0 || qty > product.quantity) {
+            alert(`Invalid quantity. Max: ${product.quantity}`);
             return;
         }
 
@@ -164,10 +164,10 @@ export default function DonateToNGOModal({ isOpen, onClose, inventory }: {
                                 >
                                     <option value="">-- Choose Product --</option>
                                     {inventory
-                                        .filter(item => item.days_to_expiry <= 7) // Only show expiring items
+                                        .filter(item => item.days_remaining <= 7) // Only show expiring items
                                         .map(item => (
                                             <option key={item.product_id} value={item.product_id}>
-                                                {item.product_name} | Stock: {item.quantity_in_stock} | Expires in {item.days_to_expiry} days
+                                                {item.product_name} | Stock: {item.quantity} | Expires in {item.days_remaining} days
                                             </option>
                                         ))}
                                 </select>
@@ -223,7 +223,7 @@ export default function DonateToNGOModal({ isOpen, onClose, inventory }: {
                                 />
                                 {selectedProduct && (
                                     <p className="text-sm text-gray-600 mt-2">
-                                        Max available: {inventory.find(i => i.product_id === selectedProduct)?.quantity_in_stock || 0}
+                                        Max available: {inventory.find(i => i.product_id === selectedProduct)?.quantity || 0}
                                     </p>
                                 )}
                             </div>

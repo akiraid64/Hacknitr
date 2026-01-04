@@ -219,9 +219,17 @@ export default function RetailerDashboard() {
                     </h1>
                     {user && <span className="font-bold hidden md:inline">Welcome, {user.name}</span>}
                 </div>
-                <button onClick={logout} className="brutalist-btn brutalist-btn-dark">
-                    EXIT →
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => router.push('/retailer/dashboard')}
+                        className="brutalist-btn"
+                    >
+                        📊 DASHBOARD
+                    </button>
+                    <button onClick={logout} className="brutalist-btn brutalist-btn-dark">
+                        EXIT →
+                    </button>
+                </div>
             </motion.header>
 
             <div className="p-6 md:p-12 max-w-7xl mx-auto">

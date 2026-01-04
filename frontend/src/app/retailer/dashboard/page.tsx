@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import DonateToNGOModal from '@/components/DonateToNGOModal';
 
 interface InventoryItem {
     product_id: number;
@@ -18,6 +19,8 @@ export default function RetailerDashboard() {
     const router = useRouter();
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showDonateModal, setShowDonateModal] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -51,6 +54,11 @@ export default function RetailerDashboard() {
         if (days <= 7) return '#FFA500';
         if (days <= 30) return '#FFD700';
         return '#00FF00';
+    };
+
+    const handleDonate = (item: InventoryItem) => {
+        setSelectedItem(item);
+        setShowDonateModal(true);
     };
 
     return (
@@ -131,6 +139,7 @@ export default function RetailerDashboard() {
                                         <th className="text-left py-3 px-4 font-black">QUANTITY</th>
                                         <th className="text-left py-3 px-4 font-black">EXPIRY</th>
                                         <th className="text-left py-3 px-4 font-black">STATUS</th>
+                                        <th className="text-left py-3 px-4 font-black">ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -159,6 +168,14 @@ export default function RetailerDashboard() {
                                                     {item.days_remaining}D
                                                 </span>
                                             </td>
+                                            <td className="py-3 px-4">
+                                                <button
+                                                    onClick={() => handleDonate(item)}
+                                                    className="bg-green-500 text-white px-4 py-2 font-bold border-2 border-black hover:bg-green-600"
+                                                >
+                                                    🎁 DONATE
+                                                </button>
+                                            </td>
                                         </motion.tr>
                                     ))}
                                 </tbody>
@@ -172,6 +189,17 @@ export default function RetailerDashboard() {
                     🔄 Dashboard updates in real-time when you scan products
                 </div>
             </div>
+
+            {/* Donation Modal */}
+            <DonateToNGOModal
+                isOpen={showDonateModal}
+                onClose={() => {
+                    setShowDonateModal(false);
+                    setSelectedItem(null);
+                    fetchInventory(); // Refresh after donation
+                }}
+                inventory={inventory}
+            />
         </main>
     );
 }
