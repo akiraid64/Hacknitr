@@ -1,9 +1,10 @@
 # Cloned reference folder - not needed
 hacknitr-main-branch/
 
-# Artifacts
+# Artifacts (allow deployment docs)
 *.md
 !README.md
+!RAILWAY_DEPLOY.md
 
 # OS
 .DS_Store
