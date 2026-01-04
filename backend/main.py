@@ -308,24 +308,35 @@ async def scan_qr_image(file: UploadFile = File(...), user: dict = Depends(get_c
             expiry_iso = expiry_dt.strftime('%Y-%m-%d')
             days_remaining = (expiry_dt - datetime.now()).days
         
-        # Record scan
-        database.create_scan(
+        # Add product to inventory (add timestamp to make duplicates unique)
+        unique_qr_url = f"{qr_data}#uploaded_{int(datetime.now().timestamp())}"
+        
+        product_id = database.create_product(
             user_id=user['id'],
-            product_gtin=gtin,
+            gtin=gtin,
             batch_id=batch,
             expiry_date=expiry_iso or "UNKNOWN",
-            days_remaining=days_remaining or 0
+            digital_link_url=unique_qr_url,  # Unique URL with timestamp
+            product_name=f"Product {gtin}",
+            gstin=None,
+            manufacturing_date=None,
+            weight_kg=1.0,
+            item_count=50
         )
+
         
         return {
             "status": "success",
+            "product_id": product_id,
             "gtin": gtin,
             "batch": batch,
             "expiry_date": expiry_iso,
             "days_remaining": days_remaining,
             "scanned_at": datetime.now().isoformat(),
-            "source": "image_upload"
+            "source": "image_upload",
+            "message": "✅ Product added to inventory!"
         }
+
         
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"API connection error: {str(e)}")

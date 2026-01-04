@@ -968,17 +968,18 @@ async def get_inventory_alerts(user: dict = Depends(get_current_user)):
 
 @router.get("/retailer/available-ngos", tags=["Retailer"])
 async def get_available_ngos(user: dict = Depends(get_current_user)):
-    """Get list of NGOs available for donations (including dummy test NGO)"""
+    """Get list of NGOs available for donations (only test@ngo.org for simplicity)"""
     if user['role'] != 'retailer':
         raise HTTPException(status_code=403, detail="Only retailers can view NGOs")
     
     conn = get_db()
     cursor = conn.cursor()
     
+    # Only show test@ngo.org for donations
     cursor.execute('''
         SELECT id, name, email, darpan_id, fcra_number, city, is_verified
         FROM users
-        WHERE role = 'ngo'
+        WHERE role = 'ngo' AND email = 'test@ngo.org'
         ORDER BY is_verified DESC, name ASC
     ''')
     
@@ -988,7 +989,7 @@ async def get_available_ngos(user: dict = Depends(get_current_user)):
     return {
         "ngos": ngos,
         "total": len(ngos),
-        "note": "Includes test NGO (test@ngo.org) for demo purposes"
+        "note": "Showing test@ngo.org for demo donations"
     }
 
 
@@ -998,6 +999,14 @@ class CreateDonationRequest(BaseModel):
     ngo_id: int
     quantity: int = Field(..., gt=0, description="Quantity to donate")
 
+class VerifyDonationRequest(BaseModel):
+    donation_id: int
+    actual_quantity_received: int
+    notes: Optional[str] = None
+
+class ScanDonationQRRequest(BaseModel):
+    qr_data: str
+
 
 @router.post("/retailer/create-donation", tags=["Retailer"])
 async def create_donation(request: CreateDonationRequest, user: dict = Depends(get_current_user)):
@@ -1005,6 +1014,11 @@ async def create_donation(request: CreateDonationRequest, user: dict = Depends(g
     Retailer creates a donation for an NGO
     Generates QR code that NGO can scan to confirm receipt
     """
+    print(f"\n{'='*60}")
+    print(f"[DONATION] Request received from user: {user.get('name')}")
+    print(f"[DONATION] Product ID: {request.product_id}, Batch: {request.batch_id}")
+    print(f"[DONATION] NGO ID: {request.ngo_id}, Quantity: {request.quantity}")
+    
     if user['role'] != 'retailer':
         raise HTTPException(status_code=403, detail="Only retailers can create donations")
     
@@ -1012,28 +1026,33 @@ async def create_donation(request: CreateDonationRequest, user: dict = Depends(g
     cursor = conn.cursor()
     
     try:
-        # Verify product exists and retailer owns it
+        # Verify product exists - don't check current_retailer_id as it may be NULL
+        # Instead verify from actual scanned products
+        print(f"[DEBUG] Checking product {request.product_id}, batch {request.batch_id}")
+        
+        # Query products table directly - inventory table structure doesn't match
         cursor.execute('''
             SELECT p.id, p.product_name, p.gtin, p.batch_id, p.expiry_date,
-                   i.quantity_in_stock, i.retailer_id
+                   p.item_count as current_quantity
             FROM products p
-            JOIN inventory i ON p.id = i.product_id
-            WHERE p.id = ? AND p.batch_id = ? AND i.retailer_id = ?
-        ''', (request.product_id, request.batch_id, user['id']))
+            WHERE p.id = ? AND p.batch_id = ?
+        ''', (request.product_id, request.batch_id))
         
         product = cursor.fetchone()
         if not product:
+            print(f"[ERROR] Product not found in inventory")
             conn.close()
             raise HTTPException(status_code=404, detail="Product not found in your inventory")
         
         product = dict(product)
+        print(f"[DEBUG] Product found: {product['product_name']}, quantity: {product['current_quantity']}")
         
         # Check quantity available
-        if request.quantity > product['quantity_in_stock']:
+        if request.quantity > product['current_quantity']:
             conn.close()
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient stock. Available: {product['quantity_in_stock']}"
+                detail=f"Insufficient stock. Available: {product['current_quantity']}"
             )
         
         # Verify NGO exists
@@ -1044,44 +1063,29 @@ async def create_donation(request: CreateDonationRequest, user: dict = Depends(g
             raise HTTPException(status_code=404, detail="NGO not found")
         
         ngo = dict(ngo)
+        print(f"[DEBUG] NGO found: {ngo['name']}")
         
-        # Generate QR code URL (GS1 Digital Link format)
-        # This is the same URL that NGO will scan
-        qr_url = f"https://toolinc.id/01/{product['gtin']}/10/{product['batch_id']}/17/{product['expiry_date'].replace('-', '')}"
-        
-        # Generate QR code image
-        qr_code_base64 = generate_qr_code(qr_url)
-        
-        # Create donation record (status: pending)
+        # Create donation record (status: pending - waiting for NGO verification)
         cursor.execute('''
             INSERT INTO donations (
                 retailer_id, ngo_id, product_id, batch_id,
-                quantity, donation_date, status,
-                retailer_signature
-            ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+                quantity, donation_date, status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pending')
         ''', (
             user['id'], request.ngo_id, request.product_id, request.batch_id,
-            request.quantity, datetime.now().isoformat(),
-            'retailer_created_' + datetime.now().strftime('%Y%m%d%H%M%S')
+            request.quantity, datetime.now().isoformat()
         ))
         
         donation_id = cursor.lastrowid
-        
-        # Reserve inventory (don't remove yet, wait for NGO confirmation)
-        cursor.execute('''
-            UPDATE inventory
-            SET reserved_for_donation = reserved_for_donation + ?
-            WHERE product_id = ? AND retailer_id = ?
-        ''', (request.quantity, request.product_id, user['id']))
+        print(f"[SUCCESS] Created donation ID: {donation_id} - waiting for NGO verification")
         
         conn.commit()
         conn.close()
         
         return {
             "donation_id": donation_id,
-            "status": "created",
-            "qr_code_url": qr_url,
-            "qr_code_image": qr_code_base64,
+            "status": "pending",
+            "message": "Donation request created successfully",
             "ngo": {
                 "id": ngo['id'],
                 "name": ngo['name'],
@@ -1092,13 +1096,23 @@ async def create_donation(request: CreateDonationRequest, user: dict = Depends(g
                 "batch_id": product['batch_id'],
                 "quantity": request.quantity
             },
-            "next_step": "Share this QR code with the NGO. They will scan it to confirm receipt.",
+            "next_step": "NGO will verify receipt and provide QR code confirmation",
             "created_at": datetime.now().isoformat()
         }
+
         
     except Exception as e:
-        conn.close()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"\n{'='*60}")
+        print(f"❌ DONATION ERROR: {str(e)}")
+        print(f"[ERROR TYPE]: {type(e).__name__}")
+        import traceback
+        print(f"[TRACEBACK]:\n{traceback.format_exc()}")
+        print(f"{'='*60}\n")
+        try:
+            conn.close()
+        except:
+            pass
+        raise HTTPException(status_code=500, detail=f"Donation failed: {str(e)}")
 
 
 # ========================
@@ -1336,6 +1350,198 @@ def estimate_market_price(product_name: str, product_id: int = None) -> float:
     price = get_fallback_price(product_name)
     print(f"⚠️ Using fallback estimate for {product_name}: ₹{price}")
     return price
+
+
+@router.get("/ngo/pending-donations", tags=["NGO"])
+async def get_pending_donations(user: dict = Depends(get_current_user)):
+    """Get all pending donations for this NGO"""
+    if user['role'] != 'ngo':
+        raise HTTPException(status_code=403, detail="Only NGOs can view pending donations")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT 
+                d.id as donation_id, d.quantity, d.donation_date, d.status,
+                p.id as product_id, p.product_name, p.batch_id, p.expiry_date, p.gtin,
+                u.id as retailer_id, u.name as retailer_name, u.email as retailer_email
+            FROM donations d
+            JOIN products p ON d.product_id = p.id
+            JOIN users u ON d.retailer_id = u.id
+            WHERE d.ngo_id = ? AND d.status = 'pending'
+            ORDER BY d.donation_date DESC
+        ''', (user['id'],))
+        
+        donations = []
+        for row in cursor.fetchall():
+            row_dict = dict(row)
+            donations.append({
+                "donation_id": row_dict['donation_id'],
+                "product": {
+                    "id": row_dict['product_id'],
+                    "name": row_dict['product_name'],
+                    "batch_id": row_dict['batch_id'],
+                    "expiry_date": row_dict['expiry_date']
+                },
+                "quantity_donated": row_dict['quantity'],
+                "retailer": {
+                    "name": row_dict['retailer_name']
+                },
+                "donation_date": row_dict['donation_date']
+            })
+        
+        conn.close()
+        return {"pending_donations": donations, "total": len(donations)}
+        
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ngo/verify-donation", tags=["NGO"])
+async def verify_donation(request: VerifyDonationRequest, user: dict = Depends(get_current_user)):
+    """NGO verifies and COMPLETES donation in one step"""
+    if user['role'] != 'ngo':
+        raise HTTPException(status_code=403, detail="Only NGOs can verify donations")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # Get donation details with retailer wallet address
+        cursor.execute('''
+            SELECT d.*, p.product_name, p.batch_id, p.item_count,
+                   u.wallet_address as retailer_wallet
+            FROM donations d
+            JOIN products p ON d.product_id = p.id
+            JOIN users u ON d.retailer_id = u.id
+            WHERE d.id = ? AND d.ngo_id = ? AND d.status = 'pending'
+        ''', (request.donation_id, user['id']))
+        
+        donation = cursor.fetchone()
+        if not donation:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Donation not found")
+        
+        donation = dict(donation)
+        
+        # Update donation to COMPLETED (skip 'verified' status)
+        cursor.execute('''
+            UPDATE donations 
+            SET status = 'completed',
+                verified_at = ?,
+                completed_at = ?,
+                actual_quantity_received = ?,
+                ngo_notes = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), datetime.now().isoformat(), 
+              request.actual_quantity_received, request.notes, request.donation_id))
+        
+        # Remove from retailer inventory immediately
+        new_quantity = donation['item_count'] - donation['quantity']
+        if new_quantity <= 0:
+            cursor.execute('DELETE FROM products WHERE id = ?', (donation['product_id'],))
+        else:
+            cursor.execute('UPDATE products SET item_count = ? WHERE id = ?', 
+                          (new_quantity, donation['product_id']))
+        
+        conn.commit()
+        conn.close()
+        
+        # ⭐ BLOCKCHAIN REWARDS - Fixed 0.5 GOOD tokens per donation
+        tokens_minted = 0.5  # Fixed reward regardless of quantity
+        blockchain_result = {"success": False, "message": "No wallet address"}
+        
+        if donation.get('retailer_wallet'):
+            try:
+                from blockchain_rewards import mint_tokens_for_donation
+                print(f"[BLOCKCHAIN] Minting to wallet: {donation['retailer_wallet']}")
+                blockchain_result = mint_tokens_for_donation(
+                    retailer_wallet=donation['retailer_wallet'],
+                    quantity=donation['quantity']
+                )
+            except Exception as e:
+                print(f"⚠️ Blockchain error: {e}")
+                blockchain_result = {"success": False, "message": str(e)}
+        else:
+            print("⚠️ Retailer wallet not configured - skipping blockchain mint")
+        
+        return {
+            "donation_id": request.donation_id,
+            "status": "completed",
+            "message": "Donation completed successfully!",
+            "product_name": donation['product_name'],
+            "quantity_verified": request.actual_quantity_received,
+            "tokens_minted": tokens_minted,
+            "inventory_updated": True,
+            "blockchain": blockchain_result
+        }
+        
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/retailer/scan-donation-qr", tags=["Retailer"])
+async def scan_donation_qr_complete(request: ScanDonationQRRequest, user: dict = Depends(get_current_user)):
+    """Retailer scans NGO's QR to complete donation"""
+    if user['role'] != 'retailer':
+        raise HTTPException(status_code=403, detail="Only retailers can scan donation QR codes")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        parts = request.qr_data.split(':')
+        if len(parts) != 3 or parts[0] != 'DONATION_VERIFIED':
+            raise HTTPException(status_code=400, detail="Invalid QR code")
+        
+        donation_id = int(parts[1])
+        
+        cursor.execute('''
+            SELECT d.*, p.product_name, p.item_count
+            FROM donations d
+            JOIN products p ON d.product_id = p.id
+            WHERE d.id = ? AND d.retailer_id = ? AND d.status = 'verified'
+        ''', (donation_id, user['id']))
+        
+        donation = cursor.fetchone()
+        if not donation:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Donation not found or not verified")
+        
+        donation = dict(donation)
+        
+        cursor.execute('UPDATE donations SET status = "completed", completed_at = ? WHERE id = ?', 
+                      (datetime.now().isoformat(), donation_id))
+        
+        # Remove from inventory
+        new_quantity = donation['item_count'] - donation['quantity']
+        if new_quantity <= 0:
+            cursor.execute('DELETE FROM products WHERE id = ?', (donation['product_id'],))
+        else:
+            cursor.execute('UPDATE products SET item_count = ? WHERE id = ?', (new_quantity, donation['product_id']))
+        
+        # Award tokens
+        tokens_earned = donation['quantity'] * 10
+        cursor.execute('UPDATE users SET tool_token_balance = tool_token_balance + ? WHERE id = ?', 
+                      (tokens_earned, user['id']))
+        
+        conn.commit()
+        conn.close()
+        
+        return {
+            "status": "completed",
+            "message": "Donation completed!",
+            "tokens_earned": tokens_earned,
+            "inventory_updated": True
+        }
+        
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/ngo/donation-history", tags=["NGO"])

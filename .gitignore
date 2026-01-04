@@ -1,0 +1,10 @@
+# Cloned reference folder - not needed
+hacknitr-main-branch/
+
+# Artifacts
+*.md
+!README.md
+
+# OS
+.DS_Store
+Thumbs.db

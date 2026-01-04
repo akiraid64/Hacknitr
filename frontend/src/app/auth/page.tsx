@@ -75,12 +75,21 @@ export default function AuthPage() {
             if (!res.ok) throw new Error(data.detail || 'Authentication failed');
 
             localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data));
+            // Backend returns: {token, user_id, role, name}
+            // Save as user object for consistency
+            localStorage.setItem('user', JSON.stringify({
+                id: data.user_id,
+                role: data.role,
+                name: data.name,
+                email: body.email // Save email too
+            }));
 
             // Redirect based on role
             if (data.role === 'manufacturer') router.push('/manufacturer');
-            else if (data.role === 'retailer') router.push('/retailer');
-            else setError('Dashboard for ' + data.role + ' coming soon!');
+            else if (data.role === 'retailer') router.push('/retailer/dashboard');
+            else if (data.role === 'ngo') router.push('/ngo');
+            else setError('Unknown role: ' + data.role);
+
 
         } catch (err: any) {
             setError(err.message);

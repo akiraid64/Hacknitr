@@ -2,23 +2,45 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Virtual Environment
-venv/
+*.so
+.Python
 env/
-
-# Environment Variables
-.env
+venv/
+*.egg-info/
+dist/
+build/
 
 # Database
 *.db
-*.sqlite3
 *.sqlite
+*.sqlite3
+toolinc_system.db
+
+# Environment
+.env
+.env.local
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Logs
+*.log
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+update_wallet.py
+check_db.py
+check_schema.py
+ngo_endpoints.py
+ADD_TO_API_ROUTES.txt
+BLOCKCHAIN_ENV_VARS.txt
+main_backup.py
+main_updated.py
