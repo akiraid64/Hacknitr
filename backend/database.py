@@ -402,37 +402,58 @@ def create_scan(user_id, product_gtin, batch_id, expiry_date, days_remaining):
     finally:
         conn.close()
 
-def get_retailer_inventory(user_id):
-    """Get all products scanned by retailer with full details"""
+def get_retailer_inventory(retailer_id):
+    """Get all products scanned by a retailer with quantities"""
+    print(f"\n{'='*60}")
+    print(f"[DEBUG] get_retailer_inventory called for retailer_id: {retailer_id}")
+    
     conn = sqlite3.connect(DATABASE_NAME, timeout=30.0)
     conn.execute('PRAGMA journal_mode=WAL')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     try:
-        cursor.execute('''
-            SELECT DISTINCT
+        # Get all scanned products with quantities
+        query = '''
+            SELECT 
                 p.id as product_id,
                 p.product_name,
                 p.gtin,
                 p.batch_id,
                 p.expiry_date,
-                p.manufacturing_date,
-                p.total_weight_kg,
-                p.item_count,
-                p.manufacturer_gstin,
-                p.status,
-                CAST(julianday(p.expiry_date) - julianday('now') AS INTEGER) as days_remaining
+                p.item_count AS quantity, -- Assuming item_count from products table is the quantity
+                CAST((julianday(p.expiry_date) - julianday('now')) AS INTEGER) as days_remaining
             FROM products p
-            INNER JOIN supply_chain_events sce ON sce.product_id = p.id
-            WHERE sce.actor_id = ? AND sce.event_type = 'scan'
+            JOIN supply_chain_events s ON p.id = s.product_id
+            WHERE s.actor_id = ? AND s.event_type = 'scan' -- Changed 'scanned_by' to 'actor_id' and 'SCAN' to 'scan' to match schema
+            GROUP BY p.id
             ORDER BY days_remaining ASC
-        ''', (user_id,))
+        '''
         
-        products = [dict(row) for row in cursor.fetchall()]
-        return products
-    finally:
+        print(f"[DEBUG] Executing query for retailer_id: {retailer_id}")
+        cursor.execute(query, (retailer_id,))
+        
+        rows = cursor.fetchall()
+        print(f"[DEBUG] Query returned {len(rows)} rows")
+        
+        inventory = []
+        for row in rows:
+            item = dict(row)
+            print(f"[DEBUG] Processing item: {item.get('product_name', 'UNKNOWN')} - Qty: {item.get('quantity', 0)}")
+            inventory.append(item)
+        
         conn.close()
+        print(f"[DEBUG] Total inventory items: {len(inventory)}")
+        print(f"{'='*60}\n")
+        
+        return inventory
+        
+    except Exception as e:
+        print(f"[ERROR] get_retailer_inventory failed: {str(e)}")
+        import traceback
+        print(f"[ERROR] Full traceback:\n{traceback.format_exc()}")
+        conn.close()
+        return []
 
 if __name__ == "__main__":
     create_database()

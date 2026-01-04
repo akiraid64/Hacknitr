@@ -388,6 +388,50 @@ async def get_ai_recommendations_endpoint(user: dict = Depends(get_current_user)
         raise HTTPException(status_code=500, detail=f"Error generating recommendations: {str(e)}")
 
 
+@app.post("/api/v1/retailer/ai-chat", tags=["Retailer"])
+async def ai_chat(request: dict, user: dict = Depends(get_current_user)):
+    """Chat with AI about inventory in Hindi/English"""
+    print(f"\n{'='*60}")
+    print(f"[DEBUG] AI Chat called by: {user.get('name')}")
+    
+    if user['role'] != 'retailer':
+        print("[ERROR] Access denied - not a retailer")
+        raise HTTPException(status_code=403, detail="Only retailers")
+    
+    try:
+        user_message = request.get('message', '')
+        chat_history = request.get('history', [])
+        
+        print(f"[DEBUG] User message: {user_message[:50] if user_message else 'empty'}...")
+        
+        if not user_message:
+            raise HTTPException(status_code=400, detail="Message required")
+        
+        # Get inventory context
+        inventory = database.get_retailer_inventory(user['id'])
+        print(f"[DEBUG] Inventory context: {len(inventory)} items")
+        
+        # Call Gemini chat
+        from gemini_chat import chat_with_inventory
+        response = chat_with_inventory(inventory, user_message, chat_history)
+        
+        print(f"[SUCCESS] AI response generated")
+        print(f"{'='*60}\n")
+        
+        return {
+            "status": "success",
+            "response": response,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"[ERROR] Chat failed: {str(e)}")
+        import traceback
+        print(f"[TRACEBACK]:\n{traceback.format_exc()}")
+        print(f"{'='*60}\n")
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+
+
 @app.post("/api/v1/retailer/scan-barcode-image", tags=["Retailer"])
 async def scan_barcode_image(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     """Upload barcode image and reduce inventory"""

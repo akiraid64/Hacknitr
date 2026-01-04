@@ -3,7 +3,7 @@ TOOL Inc API Routes - Phase 2
 Complete API endpoints for Manufacturer, Retailer, and NGO portals
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, UploadFile, File
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
@@ -13,6 +13,12 @@ import io
 import base64
 import re
 import hashlib
+import secrets
+import os
+from PIL import Image
+
+import database  # Import database module
+
 
 DATABASE_NAME = 'toolinc_system.db'
 
@@ -553,39 +559,26 @@ async def record_sale(request: SaleRecordRequest, user: dict = Depends(get_curre
 @router.get("/retailer/inventory", tags=["Retailer"])
 async def get_inventory(user: dict = Depends(get_current_user)):
     """Get retailer's current inventory"""
+    print(f"\n{'='*60}")
+    print(f"[DEBUG] get_inventory endpoint called")
+    print(f"[DEBUG] User: {user.get('name')} (ID: {user.get('id')}, Role: {user.get('role')})")
+    
     if user['role'] != 'retailer':
+        print(f"[ERROR] Access denied - user role is {user.get('role')}, not retailer")
         raise HTTPException(status_code=403, detail="Access denied")
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT 
-            i.id, i.product_id, i.batch_id, i.gtin,
-            p.product_name, i.quantity_in_stock, i.expiry_date,
-            JULIANDAY(i.expiry_date) - JULIANDAY('now') as days_to_expiry
-        FROM inventory i
-        JOIN products p ON i.product_id = p.id
-        WHERE i.retailer_id = ? AND i.quantity_in_stock > 0
-        ORDER BY days_to_expiry ASC
-    ''', (user['id'],))
-    
-    items = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    
-    # Add expiry status
-    for item in items:
-        days = item['days_to_expiry']
-        if days < 0:
-            item['expiry_status'] = 'EXPIRED'
-        elif days <= 2:
-            item['expiry_status'] = 'CRITICAL'
-        elif days <= 7:
-            item['expiry_status'] = 'WARNING'
-        else:
-            item['expiry_status'] = 'GOOD'
-    
-    return {"inventory": items, "total_items": len(items)}
+    try:
+        print(f"[DEBUG] Calling database.get_retailer_inventory({user['id']})")
+        inventory = database.get_retailer_inventory(user['id'])
+        print(f"[DEBUG] Successfully retrieved {len(inventory)} inventory items")
+        print(f"{'='*60}\n")
+        return {"status": "success", "inventory": inventory}
+    except Exception as e:
+        print(f"[ERROR] get_inventory endpoint failed: {str(e)}")
+        import traceback
+        print(f"[ERROR] Full traceback:\n{traceback.format_exc()}")
+        print(f"{'='*60}\n")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/retailer/stats", tags=["Retailer"])
 async def get_retailer_stats(user: dict = Depends(get_current_user)):

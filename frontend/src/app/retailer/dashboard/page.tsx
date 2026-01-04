@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DonateToNGOModal from '@/components/DonateToNGOModal';
+import AIChatbot from '@/components/AIChatbot';
+import AIRecommendationsModal from '@/components/AIRecommendationsModal';
 
 interface InventoryItem {
     product_id: number;
@@ -21,6 +23,9 @@ export default function RetailerDashboard() {
     const [loading, setLoading] = useState(true);
     const [showDonateModal, setShowDonateModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+    const [showAI, setShowAI] = useState(false);
+    const [aiRecs, setAiRecs] = useState<any>(null);
+    const [showChatbot, setShowChatbot] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -67,12 +72,65 @@ export default function RetailerDashboard() {
                 {/* Header */}
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-4xl font-black">📊 RETAILER DASHBOARD</h1>
-                    <button
-                        onClick={() => router.push('/retailer')}
-                        className="brutalist-btn brutalist-btn-secondary"
-                    >
-                        ← BACK
-                    </button>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={async () => {
+                                console.log('🤖 AI Insights button clicked');
+                                setLoading(true);
+                                try {
+                                    const token = localStorage.getItem('token');
+                                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+                                    const endpoint = `${apiUrl}/retailer/get-ai-recommendations`;
+
+                                    console.log('📡 Calling:', endpoint);
+                                    console.log('🔑 Token exists:', !!token);
+
+                                    const res = await fetch(endpoint, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Authorization': `Bearer ${token}`,
+                                            'Content-Type': 'application/json'
+                                        }
+                                    });
+
+                                    console.log('📊 Response status:', res.status);
+
+                                    if (!res.ok) {
+                                        const errorText = await res.text();
+                                        console.error('❌ Error:', errorText);
+                                        alert(`AI failed (${res.status}): ${errorText}`);
+                                        return;
+                                    }
+
+                                    const data = await res.json();
+                                    console.log('✅ AI Data received:', data);
+
+                                    setAiRecs(data.recommendations);
+                                    setShowAI(true);
+                                } catch (err: any) {
+                                    console.error('❌ Exception:', err);
+                                    alert(`AI error: ${err.message}`);
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }}
+                            className="brutalist-btn bg-purple-500 hover:bg-purple-600 text-white font-black px-6 py-3"
+                        >
+                            🤖 AI INSIGHTS
+                        </button>
+                        <button
+                            onClick={() => setShowChatbot(true)}
+                            className="brutalist-btn bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-black px-6 py-3"
+                        >
+                            💬 AI CHAT
+                        </button>
+                        <button
+                            onClick={() => router.push('/retailer')}
+                            className="brutalist-btn brutalist-btn-secondary"
+                        >
+                            ← BACK
+                        </button>
+                    </div>
                 </div>
 
                 {/* Stats Cards */}
@@ -199,6 +257,17 @@ export default function RetailerDashboard() {
                     fetchInventory(); // Refresh after donation
                 }}
                 inventory={inventory}
+            />
+
+            <AIChatbot
+                isOpen={showChatbot}
+                onClose={() => setShowChatbot(false)}
+            />
+
+            <AIRecommendationsModal
+                isOpen={showAI}
+                onClose={() => setShowAI(false)}
+                recommendations={aiRecs}
             />
         </main>
     );

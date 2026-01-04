@@ -160,16 +160,14 @@ export default function DonateToNGOModal({ isOpen, onClose, inventory }: {
                                 <select
                                     value={selectedProduct || ''}
                                     onChange={(e) => setSelectedProduct(Number(e.target.value))}
-                                    className="w-full border-4 border-black p-3 font-bold text-lg"
+                                    className="w-full px-4 py-3 border-4 border-black bg-white font-bold text-lg"
                                 >
                                     <option value="">-- Choose Product --</option>
-                                    {inventory
-                                        .filter(item => item.days_remaining <= 7) // Only show expiring items
-                                        .map(item => (
-                                            <option key={item.product_id} value={item.product_id}>
-                                                {item.product_name} | Stock: {item.quantity} | Expires in {item.days_remaining} days
-                                            </option>
-                                        ))}
+                                    {inventory.map(item => (
+                                        <option key={item.product_id} value={item.product_id}>
+                                            {item.product_name} - Qty: {item.quantity} ({item.days_remaining}D left)
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
