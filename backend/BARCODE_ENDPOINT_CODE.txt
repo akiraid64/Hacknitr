@@ -1,0 +1,51 @@
+# Add this import at the top of main.py
+from PIL import Image
+from pyzbar import pyzbar
+import io
+
+# Add this endpoint before "if __name__ == '__main__':"
+
+@app.post("/api/v1/retailer/scan-barcode-image", tags=["Retailer"])
+async def scan_barcode_image(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Upload barcode image and reduce inventory"""
+    
+    if user['role'] != 'retailer':
+        raise HTTPException(status_code=403, detail="Only retailers")
+    
+    try:
+        # Decode barcode from image
+        image_data = await file.read()
+        img = Image.open(io.BytesIO(image_data))
+        barcodes = pyzbar.decode(img)
+        
+        if not barcodes:
+            raise HTTPException(status_code=400, detail="No barcode found in image")
+        
+        gtin = barcodes[0].data.decode('utf-8')
+        barcode_type = barcodes[0].type
+        
+        # Reduce quantity using barcode_scanner module
+        from barcode_scanner import scan_barcode
+        result = scan_barcode(gtin, user['id'])
+        
+        if not result['success']:
+            raise HTTPException(status_code=404, detail=result.get('error'))
+        
+        # Auto-trigger AI
+        inventory = database.get_retailer_inventory(user['id'])
+        from gemini_inventory import analyze_inventory_for_recommendations
+        ai_recs = analyze_inventory_for_recommendations(inventory)
+        
+        return {
+            "status": "success",
+            "barcode_type": barcode_type,
+            "gtin": gtin,
+            "product": result['product'],
+            "quantity_change": result['quantity_change'],
+            "ai_recommendations": ai_recs
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

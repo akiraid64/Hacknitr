@@ -9,9 +9,6 @@ import io
 import base64
 import re
 from typing import Optional, List
-from PIL import Image
-from pyzbar import pyzbar
-import io
 
 # Import database functions
 import database
@@ -386,74 +383,6 @@ async def get_ai_recommendations_endpoint(user: dict = Depends(get_current_user)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating recommendations: {str(e)}")
-
-
-@app.post("/api/v1/retailer/scan-barcode-image", tags=["Retailer"])
-async def scan_barcode_image(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    """Upload barcode image and reduce inventory"""
-    
-    if user['role'] != 'retailer':
-        raise HTTPException(status_code=403, detail="Only retailers")
-    
-    try:
-        # Decode barcode from image
-        image_data = await file.read()
-        img = Image.open(io.BytesIO(image_data))
-        barcodes = pyzbar.decode(img)
-        
-        if not barcodes:
-            raise HTTPException(status_code=400, detail="No barcode found in image")
-        
-        gtin = barcodes[0].data.decode('utf-8')
-        barcode_type = barcodes[0].type
-        
-        # Reduce quantity using barcode_scanner module
-        from barcode_scanner import scan_barcode
-        result = scan_barcode(gtin, user['id'])
-        
-        if not result['success']:
-            raise HTTPException(status_code=404, detail=result.get('error'))
-        
-        # Auto-trigger AI
-        inventory = database.get_retailer_inventory(user['id'])
-        from gemini_inventory import analyze_inventory_for_recommendations
-        ai_recs = analyze_inventory_for_recommendations(inventory)
-        
-        return {
-            "status": "success",
-            "barcode_type": barcode_type,
-            "gtin": gtin,
-            "product": result['product'],
-            "quantity_change": result['quantity_change'],
-            "ai_recommendations": ai_recs
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/manufacturer/product-analytics", tags=["Manufacturer"])
-async def get_product_analytics(user: dict = Depends(get_current_user)):
-    """
-    Get analytics for manufacturer's products
-    Shows which retailers have products and inventory levels
-    """
-    if user['role'] != 'manufacturer':
-        raise HTTPException(status_code=403, detail="Only manufacturers can access analytics")
-    
-    try:
-        from manufacturer_analytics import get_manufacturer_product_analytics
-        
-        analytics = get_manufacturer_product_analytics(user['id'])
-        
-        return {
-            "status": "success",
-            "analytics": analytics
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching analytics: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
