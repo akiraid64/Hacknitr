@@ -130,7 +130,7 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
     cursor.execute('''
         SELECT u.* FROM users u
         JOIN sessions s ON u.id = s.user_id
-        WHERE s.token = ? AND s.expires_at > ?
+        WHERE s.session_token = ? AND s.expires_at > ?
     ''', (token, datetime.now().isoformat()))
     
     user = cursor.fetchone()
